@@ -21,3 +21,7 @@ Open http://localhost:3000
 5. Before exposing this publicly, implement real login, per-user authorization, a transactional database, encrypted object storage, malware scanning, rate limits, abuse controls, international destination restrictions, secure document deletion, compliance/privacy policies and payment processing. The current shared JSON history is for **local demonstration only** and **not production safe**.
 
 No provider integration or payments are configured. This is not a fully operational commercial fax service.
+
+## Incoming faxes on Vercel
+
+Firebase-backed Telnyx receiving and a private owner inbox are implemented. Follow [RECEIVING.md](RECEIVING.md) for Firestore, Cloud Storage, credentials and deployment. Sending remains a demo. Run `npm install` before starting the app.

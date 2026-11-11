@@ -21,25 +21,24 @@ test('inbox fails closed without a strong configured token', () => {
   assert.equal(authorized(`Bearer ${'a'.repeat(32)}`, 'a'.repeat(32)), true);
   assert.equal(authorized(`Bearer ${'b'.repeat(32)}`, 'a'.repeat(32)), false);
 });
-test('completed fax is stored before acknowledgement and duplicate skips media download', async () => {
+test('Firebase persistence completes before success, duplicates skip download and storage failures propagate', async () => {
   const original = globalThis.fetch;
-  process.env.SUPABASE_URL = 'https://example.supabase.co'; process.env.SUPABASE_SERVICE_ROLE_KEY = 'test'; process.env.TELNYX_FAX_CONNECTION_ID = 'connection';
-  const calls = [];
-  globalThis.fetch = async (url, options) => {
-    calls.push([String(url), options]);
-    if (String(url).includes('?fax_id=')) return Response.json([]);
-    if (String(url).includes('s3.amazonaws.com')) return new Response('%PDF-1.7\nexample');
-    return new Response(null, {status: 201});
-  };
+  process.env.TELNYX_FAX_CONNECTION_ID = 'connection';
+  let downloads = 0;
+  globalThis.fetch = async () => {downloads++; return new Response('%PDF-1.7\nexample');};
   const event = {event_type: 'fax.received', occurred_at: new Date().toISOString(), payload: {direction: 'inbound', connection_id: 'connection', fax_id: 'abc-123', from: '+1234567890', to: '+1234567891', page_count: 1, media_url: 'https://s3.amazonaws.com/faxes/test.pdf'}};
+  const writes = [];
+  const store = {exists: async () => false, savePDF: async (id, pdf) => writes.push(['pdf', id, pdf]), saveRecord: async record => writes.push(['record', record])};
+  const factory = async () => store;
   try {
-    await receive(event); assert.equal(calls.length, 4);
-    assert.match(calls[2][0], /storage\/v1\/object\/faxes\/abc-123.pdf/);
-    assert.match(calls[3][0], /rest\/v1\/inbound_faxes/);
-    globalThis.fetch = async () => Response.json([{fax_id: 'abc-123'}]);
-    await receive(event);
-    globalThis.fetch = async () => Response.json([]);
-    await assert.rejects(receive({...event, payload: {...event.payload, media_url: 'http://127.0.0.1/private'}}), /Unsupported/);
+    await receive(event, factory);
+    assert.equal(downloads, 1); assert.equal(writes[0][0], 'pdf'); assert.equal(writes[1][0], 'record');
+    store.exists = async () => true;
+    await receive(event, factory); assert.equal(downloads, 1); assert.equal(writes.length, 2);
+    store.exists = async () => false;
+    await assert.rejects(receive({...event, payload: {...event.payload, media_url: 'http://127.0.0.1/private'}}, factory), /Unsupported/);
+    store.savePDF = async () => {throw Error('Storage failed');};
+    await assert.rejects(receive(event, factory), /Storage failed/); assert.equal(writes.length, 2);
   } finally {globalThis.fetch = original;}
 });
 test('webhook returns retryable failure when unconfigured', async () => {

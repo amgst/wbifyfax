@@ -1,4 +1,6 @@
 node_modules/
+.npm-cache/
+*service-account*.json
 .env
 .env.*
 !.env.example
