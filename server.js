@@ -3,6 +3,8 @@ import {readFile,writeFile,mkdir} from 'node:fs/promises';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import {fileURLToPath} from 'node:url';
+import telnyxWebhook from './api/webhooks/telnyx.js';
+import inbox from './api/inbox.js';
 const root=path.dirname(fileURLToPath(import.meta.url));
 const port=Number(process.env.PORT||3000);
 const dbPath=path.join(root,'data','faxes.json');
@@ -15,6 +17,8 @@ const parse=async req=>{let data='';for await(const chunk of req){data+=chunk;if
 const server=http.createServer(async(req,res)=>{
 try{
  const u=new URL(req.url,'http://localhost');
+ if(u.pathname==='/api/webhooks/telnyx')return await telnyxWebhook(req,res);
+ if(u.pathname==='/api/inbox')return await inbox(req,res);
  if(u.pathname==='/api/faxes'&&req.method==='GET')return send(res,200,{mode:'demo',jobs:jobs.slice().reverse().map(({filename,...job})=>job)});
  if(u.pathname==='/api/faxes'&&req.method==='POST'){
    const d=await parse(req);const number=String(d.number||'').trim();const filename=String(d.filename||'').slice(0,150);
@@ -27,8 +31,8 @@ try{
    jobs.push(job);await save();return send(res,201,{job,notice:'Demo saved. No actual fax was transmitted.'});
  }
  if(u.pathname.startsWith('/api/'))return send(res,404,{error:'Not found'});
- const file=u.pathname==='/'?'index.html':u.pathname.slice(1);
- if(!['index.html','app.js','styles.css'].includes(file)){res.writeHead(404);return res.end('Not found');}
+ const file=u.pathname==='/'?'index.html':u.pathname==='/inbox'?'inbox.html':u.pathname.slice(1);
+ if(!['index.html','app.js','styles.css','inbox.html','inbox.js'].includes(file)){res.writeHead(404);return res.end('Not found');}
  const body=await readFile(path.join(root,'public',file));res.writeHead(200,{'Content-Type':mime[path.extname(file)],'X-Content-Type-Options':'nosniff','Content-Security-Policy':"default-src 'self'; style-src 'self'; script-src 'self'; object-src 'none'; base-uri 'none'"});res.end(body);
  }catch(e){send(res,400,{error:e.message||'Request failed'});}
 });server.listen(port,()=>console.log(`FaxBridge demo: http://localhost:${port}`));
