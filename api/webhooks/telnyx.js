@@ -1,4 +1,5 @@
 import {verifyWebhook, receive, json} from '../../lib/receiving.js';
+import {updateDelivery} from '../../lib/sending.js';
 export const config = {api: {bodyParser: false}};
 export default async function handler(req, res) {
   if (req.method !== 'POST') {res.setHeader('Allow', 'POST'); return json(res, 405, {error: 'Use POST'});}
@@ -10,6 +11,7 @@ export default async function handler(req, res) {
     if (!verifyWebhook(raw, req.headers, process.env.TELNYX_PUBLIC_KEY)) return json(res, 401, {error: 'Invalid signature'});
     let body; try {body = JSON.parse(raw);} catch {return json(res, 400, {error: 'Invalid JSON'});}
     await receive(body.data);
+    await updateDelivery(body.data);
     return json(res, 200, {received: true});
   } catch {return json(res, 503, {error: 'Could not persist fax; retry delivery'});}
 }

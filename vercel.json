@@ -4,6 +4,7 @@
     {"src": "public/**", "use": "@vercel/static"}
   ],
   "routes": [
+    {"src": "/api/faxes", "dest": "/api/faxes.js"},
     {"src": "/api/webhooks/telnyx", "dest": "/api/webhooks/telnyx.js"},
     {"src": "/api/inbox", "dest": "/api/inbox.js"},
     {"src": "/inbox/?", "dest": "/public/inbox.html"},
